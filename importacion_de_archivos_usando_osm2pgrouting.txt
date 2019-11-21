@@ -1,0 +1,1 @@
+osm2pgrouting -f map.osm -c mapconfig_for_cars_mod.xml -d gislocal --schema ruteoamg -U gisadmin -W privacidad% --clean --chunk 20000

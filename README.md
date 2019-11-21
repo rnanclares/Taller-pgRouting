@@ -2,9 +2,10 @@
 
 ![Logo de pgRouting](https://docs.pgrouting.org/2.6/en/_static/pgrouting.png)
 
+*Este taller está basado en los [Workshops de pgRouting de los FOSS4G](https://workshop.pgrouting.org/) sin los cuales hubiera sido imposible aprender a usar pgRouting. Gracias!*
 ## **1. ¿Qué es pgRouting?**
 
-pgRouting es una extensión para PostgreSQL/PostGIS que añade funcionalidades para ánalisis de redes y planificación de rutas. Esto permite que podamos realizar cálculos de rutas óptimas, áreas de servicio e iscocronas (con la ayuda de QGIS), desde la propia base de datos con los beneficios que esto conlleva:
+pgRouting es una extensión para PostgreSQL/PostGIS que añade funcionalidades para ánalisis de redes y planificación de rutas. Esto nos permite realizar cálculos de rutas óptimas, áreas de servicio e iscocronas (con la ayuda de QGIS), desde la propia base de datos con los beneficios que esto conlleva:
 * Los datos pueden ser modificados desde diversos tipos de clientes:  
   * SIG de Escritorio (QGIS, gvSIG, uDig, etc)
   * Aplicaciones web
@@ -30,7 +31,7 @@ Una de las principales desarrolladoras es [Vicky Vergara](https://twitter.com/Vi
 
 ## **2. Estructura de datos**
 
-La estructura básica que necesitamos para empezara a trabajar con PgRouting es una capa de líneas (o tabla de base de datos) con una buena calidad topológica (no existan lineas desconectadas). Si queremos hacer cálculos en función del tiempo de desplazamiento necestaremos además un campo que contenga la velocidad máxima permitida y longitud de la linea (en metros). Si además queremos tener en cuenta el sentido de circulación necesitamos un atributo que nos indique el sentido de circulación o si la vía es de doble sentido.
+La estructura básica que necesitamos para empezar a trabajar con PgRouting es una capa de líneas (o tabla de base de datos) con una buena calidad topológica (que no tenga lineas desconectadas). Si queremos hacer cálculos en función del tiempo de desplazamiento necestaremos además un campo que contenga la velocidad máxima permitida en la vía y longitud de la linea (en metros). Si además queremos tener en cuenta el sentido de circulación necesitamos un atributo que nos indique el sentido de circulación o si la vía es de doble sentido.
 
 Además de la "capa" de líneas necesitamos una capa de nodos de la red. Estos nodos definen las conexiones entre calles y carreteras. La capa de lineas tiene que contener para cada segmento de la red cuál es el nodo de origen y el nodo de destino que conecta. Así que finalmente la capa de lineas tiene que contener dos atributos más, nodo de origen y nodo de estino (source y target).
 
@@ -547,6 +548,33 @@ SET cost_s = longitud / (velocidad * 1000 / 3600);
 ```
 
 #### 4.3.2 Ejercicio 11 - Un solo origen
+Para este ejericio vamos a calcular la distancia de manejo desde el Hospital General Regional 46 del IMSS (`id_union = 635443`) y `distance = 3600` (en segundos). En parmetro de `id_union` lo hemos calculado previamente asignando el nodo más cercano de la RNC a todos los hospitales. Si observamos la tabla `ruteoinegi.red_vial` veremos que tiene dos atributos `id_union` y `distancia`, este segundo atributo nos indica la distancia lineal entre el punto donde está ubicado un hospital y el nodo más cercano de la red, que podemos encontrar en la tabla `ruteoinegi.union`.
+
+Para realizar este proceso hemos utilizado la consulta que aparece a continuación. En ella para cada hospital calculamos cual es el nodo de la red (tabla `ruteoinegi.union`) más cercano a cada hospital y la distancia a la que se encuentra. El atributo de la distancia nos da una idea de lo correcto que puede ser el cálculo de una ruta para cada hospital. Esto es necesario ya que la RNC, como ya habíamos comentado, no cuenta con toda la red de calles en las zonas urbanas y tampoco están algunos caminos/terracerías de zonas rurales. Este proceso de encontrar el nodo más cercano de la red lo vamos a tener que realizar siempre ya que para los parámetros de `start_vid` y `end_vid` de los diferentes algoritmos siempre tenemos que utilizar las IDs de los nodos de la red (en este caso es el atributo `id_union`)
+
+```sql
+WITH foo as (
+SELECT
+hospitales.id,
+closest_node.id_union,
+closest_node.dist
+FROM ruteoinegi.hospitales
+CROSS JOIN LATERAL -- Este CROSS JOIN lateral funciona como un bucle "for each"
+(SELECT
+ id_union,
+ ST_Distance("union".geom, hospitales.geom) as dist
+ FROM ruteoinegi."union"
+ ORDER BY ST_Distance("union".geom, hospitales.geom)
+ LIMIT 1 -- Este limit 1 hace que solo obtengamos el nodo más cercano de la red
+) AS closest_node)
+UPDATE ruteoinegi.hospitales -- Finalmente actualizamos la capa de hospitales
+SET id_union = foo.id_union,
+distancia = foo.dist
+FROM foo
+WHERE hospitales.id = foo.id
+```
+Ahora ya estamos listos para usar el algoritmo pgr_drivingDistance, a partir del que luego podemos generar las isocronas (utilizando QGIS).
+
 ```sql
 SELECT subquery.seq,
 	subquery.node,
@@ -563,9 +591,11 @@ FROM pgr_drivingDistance('SELECT
      subquery(seq, node, edge, cost, aggcost)
 JOIN ruteoinegi.union pt ON subquery.node = pt.id_union;
 ```
+#### 4.3.3 Ejercicio 12 - Varios orígenes
+Para generar la distancias de manejo desde varios orígenes tenemos que volver a utilizar un `ARRAY`. En este caso concreto vamos a extraer todos los `id_union` desde la tabla `ruteoinegi.hospitales` y pasárselos a `pgr_drivingDistance`. Para que podamos generar las isocronas de todos los hospitales en conjunto tenemos que hacer dos procesos, primero calculamos la distancia de manejo desde cada hospital y posteriormente agrupamos los resulados por nodo (y geometría) y nos quedamos con el costo agregado mínimo que nos va a representar el tiempo mínimo desde ese nodo a un hospital.
 
 ```sql
-CREATE OR REPLACE TABLE ruteoinegi.isocronas_hospitales AS (
+WITH ruteo as (
   SELECT subquery.seq,
   	subquery.start_v,
   	subquery.node,
@@ -581,5 +611,86 @@ CREATE OR REPLACE TABLE ruteoinegi.isocronas_hospitales AS (
        FROM ruteoinegi.red_vial',
        array(SELECT id_union FROM ruteoinegi.hospitales), 1800, false)
        subquery(seq, start_v, node, edge, cost, aggcost)
-  JOIN ruteoinegi.union pt ON subquery.node = pt.id_union);
+  JOIN ruteoinegi.union pt ON subquery.node = pt.id_union)
+SELECT node, geom, min(aggcost) AS aggcost
+FROM ruteo
+GROUP By node, geom;
+```
+#### 4.3.4 Ejercicio 13 - isocronas
+
+Para generar las isocronas necesitamos el resultado del ejercicio anterior, podemos crear la tabla usando:
+
+```sql
+CREATE TABLE public."elnombrequetuquieras" as (
+WITH ruteo as (
+  SELECT subquery.seq,
+  	subquery.start_v,
+  	subquery.node,
+  	subquery.edge,
+  	subquery.cost,
+  	subquery.aggcost,
+  	pt.geom
+  FROM pgr_drivingDistance('SELECT
+       id_red as id,
+       union_ini AS source,
+       union_fin AS target,                                    
+       cost_s AS cost
+       FROM ruteoinegi.red_vial',
+       array(SELECT id_union FROM ruteoinegi.hospitales), 1800, false)
+       subquery(seq, start_v, node, edge, cost, aggcost)
+  JOIN ruteoinegi.union pt ON subquery.node = pt.id_union)
+SELECT node, geom, min(aggcost) AS aggcost
+FROM ruteo
+GROUP By node, geo);
+```
+
+Esto creará la tabla "elnombrequetuquieras" en el `schema public`. Para los siguientes pasos vamos a necesitar QGIS así que a continuación vamos a configurar la conexión a la base de datos dentro de QGIS.
+Para ello vamos al menú panel del navegador y en `PostGIS` creamos nueva conexión haciendo clic con el botón derecho. Ahora podemos cargar la tabla que acabamos de crear que estará en el `schema public`.
+[img]
+
+Una vez cargada la capa vamos a exportar a un archivo local para poder trabajar con mayor comodidad sin depender de la conexión. Para ello hacemos clic con el botón derecho sobre la capa y la guardamos como un `geopackage`.
+
+Para siguiente paso vamos a interpolar sobre la capa de puntos y generar una superficie de costo continua. Podemos utilizar la herramienta para generar TINs desde la caja de herramientas.
+[img]
+Configuramos la herramienta como se ve en la imagen.
+[img]
+El siguiente paso es generar las isolineas, en este caso, isocronas. Para ello vamos a usar la herramienta de `Curvas de nivel (Contours)` y la vamos a configurar como aparecen en la siguiente imagen.
+[img]
+
+### **4.4 Ruteo Masivo**
+
+Una de las capacidades más notables de pgRouting es la posibilidad de realizar operaciones con grandes cantidades de datos de forma extremadamente rápida. Por ejemplo, podemos contestar preguntas del tipo: ¿Cuáles centros de salud son los más cercanos a cada la localidad de Jalisco?¿Cuáles son los 3 hospitales más cercanos a cada centro de salud? ¿Cuáles localidades se encuentran a más de 30 minutos de una escuela?¿Cuál es la accesibilidad de las escuelas de todo un estado?¿Qué zonas de un estado tienen poca accesibilidad a un servicio (escuelas, centros de salud, taquerías, etc).
+
+#### 4.4.1 Ejercicio 14 - Hospitales más cercanos a localidades
+En este ejercicio vamos a utilizar la función `pgr_dijkstraCost` para analizar cuáles son los tres hospitales más cercanos a cada localidad de Jalisco. Para ello vamos a usar las tablas `ruteoinegi.hospitales` y `ruteoinegi.locpob`. De nuevo vamos a utilizar arreglos (`ARRAY`) para definir los parametros de los nodos de origen y destino del algoritmo `pgr_dijkstraCost`. Esto nos va a permitir analizar 10972 localidades contra 92 hospitales en unos pocos minutos (¡Más de 1,000,000 de combinacines posibles!). El tiempo de ejecución de la consulta es de 13 minutos 44 segundos en nuestro servidor. ¡¡¡Nada mal!!! Para no emplear demasiado tiempo vamos a limitar el número de localidades a analizar añadiendo un pequeño filtro al arreglo y seleccionando las localidaes con `id<1000`.
+```sql
+CREATE TABLE ruteoinegi.localidadesVShospitales as (SELECT *
+  FROM pgr_dijkstraCost(
+      'SELECT id,
+           union_ini as source,
+           union_fin as target,
+           cost_s as cost
+          FROM ruteoinegi.red_vial',
+      array(SELECT id_union FROM ruteoinegi.locpob WHERE id<1000),
+      array(SELECT id_union FROM ruteoinegi.hospitales),
+      directed := false));
+```
+Ahora vamos a seleccionar solo los tres hospitales más cercanos a cada localidad.
+
+```sql
+CREATE TABLE ruteoinegi.locpobvshospitalesrank as ( SELECT foo.* FROM (
+SELECT cluesvshospitales.*, rank() over (partition BY start_vid ORDER BY agg_cost asc)
+FROM ruteoinegi.cluesvshospitales) foo WHERE RANK <= 3);
+```
+
+El resultado de esta consulta es el costo de desplazamiento acumulado `agg_cost` desde cada localidad `start_vid` a todos los hospitales `end_vid`. Podemos mejorar la visualización de los resultados añadiendo los nombres de las localidades, los nombres de los hospitales y añadiendo una linea usando `st_makeline` para mejorar la visualización en caso de que queramos crear un mapa.
+```sql
+CREATE TABLE ruteoinegi.matriz_locpobVShospitales as (
+SELECT row_number() over (order by a.start_vid) as id, a.start_vid as nodo_inicio, b.nom_loc as localidad,
+a.end_vid as nodo_fin, c."nombre de la unidad" as hospital,
+c."nombre de tipologia" as tipologia_hosp, a."agg_cost" / 60 as tiempo_minutos, a."rank",
+st_makeline(b.geom,c.geom)
+FROM ruteoinegi.locpobvshospitalesrank a
+LEFT JOIN ruteoinegi.locpob b ON a.start_vid = b.id_union
+LEFT JOIN ruteoinegi.hospitales c ON a.end_vid = c.id_union);
 ```
