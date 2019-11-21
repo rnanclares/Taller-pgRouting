@@ -31,6 +31,8 @@ Una de las principales desarrolladoras es [Vicky Vergara](https://twitter.com/Vi
 
 ## **2. Estructura de datos**
 
+Los archivos para el taller los podemos descargar desde [aquí](https://drive.google.com/drive/folders/1t9sBO8x97giIzbaBvq3jbdqyqbU7W_yC?usp=sharing)
+
 La estructura básica que necesitamos para empezar a trabajar con PgRouting es una capa de líneas (o tabla de base de datos) con una buena calidad topológica (que no tenga lineas desconectadas). Si queremos hacer cálculos en función del tiempo de desplazamiento necestaremos además un campo que contenga la velocidad máxima permitida en la vía y longitud de la linea (en metros). Si además queremos tener en cuenta el sentido de circulación necesitamos un atributo que nos indique el sentido de circulación o si la vía es de doble sentido.
 
 Además de la "capa" de líneas necesitamos una capa de nodos de la red. Estos nodos definen las conexiones entre calles y carreteras. La capa de lineas tiene que contener para cada segmento de la red cuál es el nodo de origen y el nodo de destino que conecta. Así que finalmente la capa de lineas tiene que contener dos atributos más, nodo de origen y nodo de estino (source y target).
@@ -130,7 +132,9 @@ Para agilizar el taller no vamos a realizar la instalación de PostgreSQL, PostG
 
 IP del Servidor: xx.xx.xx.xx
 
-Cada alumno tendrá su propio esquema. Los datos están en la base de datos taller en el esquema ruteo. Cada participante tendrá su propio esquema donde podrá ir creando sus propias tablas como resultado del taller.
+Los datos están en los schemas `ruteoinegi` y `ruteoamg`.
+
+Pueden descargar la base de datos completa desde [aquí](https://drive.google.com/drive/folders/1t9sBO8x97giIzbaBvq3jbdqyqbU7W_yC?usp=sharing), es un dump con todos los datos del taller.
 
 ## **3. Algoritmos de pgRouting**
 
@@ -193,7 +197,12 @@ SELECT ruta.*, b.the_geom
 FROM ruta
 LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid ;
 ```
-Podemos visualizar el resultado de la consulta directamente en pgAdmin4 haciendo clic en el botón. También podemos visualizarlo en QGIS.
+Podemos visualizar el resultado de la consulta directamente en pgAdmin4 haciendo clic en el botón con un ojo. También podriamo visualizarlo en QGIS.
+
+![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/pgadmin_geometry_viewer.png)
+
+![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/ejercicio_1_pgadmin.png)
+
 
 #### 3.1.2 Ejercicio 2 - Varios orígenes y un destino
 En este caso vamos especificar varios orígenes y un destino:
@@ -645,17 +654,27 @@ GROUP By node, geo);
 ```
 
 Esto creará la tabla "elnombrequetuquieras" en el `schema public`. Para los siguientes pasos vamos a necesitar QGIS así que a continuación vamos a configurar la conexión a la base de datos dentro de QGIS.
-Para ello vamos al menú panel del navegador y en `PostGIS` creamos nueva conexión haciendo clic con el botón derecho. Ahora podemos cargar la tabla que acabamos de crear que estará en el `schema public`.
-[img]
+Para ello vamos al menú panel del navegador y en `PostGIS` creamos nueva conexión haciendo clic con el botón derecho.
+
+![Base de datos](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/conexion_postgis.png)
+
+Ahora podemos cargar la tabla que acabamos de crear que estará en el `schema public`.
+
+![Base de datos](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/bbdd_taller.png)
 
 Una vez cargada la capa vamos a exportar a un archivo local para poder trabajar con mayor comodidad sin depender de la conexión. Para ello hacemos clic con el botón derecho sobre la capa y la guardamos como un `geopackage`.
 
+![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_2.png)
+
 Para siguiente paso vamos a interpolar sobre la capa de puntos y generar una superficie de costo continua. Podemos utilizar la herramienta para generar TINs desde la caja de herramientas.
-[img]
+![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_3.png)
 Configuramos la herramienta como se ve en la imagen.
-[img]
+![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_4.png)
 El siguiente paso es generar las isolineas, en este caso, isocronas. Para ello vamos a usar la herramienta de `Curvas de nivel (Contours)` y la vamos a configurar como aparecen en la siguiente imagen.
-[img]
+![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_6.png)
+
+El resultado final con un poco de diseño.
+![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_5.png)
 
 ### **4.4 Ruteo Masivo**
 
