@@ -317,7 +317,7 @@ RETURNS SET OF (start_vid, end_vid, agg_cost)
 
 #### 3.2.1 Ejercicio 5 - Calcular el costo total entre varios orígenes y varios destinos
 ```sql
-SELECT * FROM pgr_dijkstra('SELECT gid as id,
+SELECT * FROM pgr_dijkstraCost('SELECT gid as id,
         source,
         target,
         length_m / 5.56 / 60 AS cost
