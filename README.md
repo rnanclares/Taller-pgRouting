@@ -702,7 +702,7 @@ SELECT cluesvshospitales.*, rank() over (partition BY start_vid ORDER BY agg_cos
 FROM ruteoinegi.cluesvshospitales) foo WHERE RANK <= 3);
 ```
 
-El resultado de esta consulta es el costo de desplazamiento acumulado `agg_cost` desde cada localidad `start_vid` a todos los hospitales `end_vid`. Podemos mejorar la visualización de los resultados añadiendo los nombres de las localidades, los nombres de los hospitales y añadiendo una linea usando `st_makeline` para mejorar la visualización en caso de que queramos crear un mapa.
+El resultado de esta consulta es el costo de desplazamiento acumulado `agg_cost` desde cada localidad `start_vid` a todos los hospitales `end_vid`. Podemos mejorar la visualización de los resultados añadiendo los nombres de las localidades, los nombres de los hospitales y generando una linea usando `st_makeline` en caso de que queramos crear un mapa.
 ```sql
 CREATE TABLE ruteoinegi.matriz_locpobVShospitales as (
 SELECT row_number() over (order by a.start_vid) as id, a.start_vid as nodo_inicio, b.nom_loc as localidad,
