@@ -182,7 +182,7 @@ El resultado de la consulta es una tabla con las columnas:
 * `cost`: Costo de desplazamiento por el segmento
 * `agg_cost`: Costo agregado para cada paso de la ruta  
 
-Como la función pgr_dijkstra no retorna las geometrías vamos a generar una consulta que nos permita obtener las geometrías de la red para poder visualizar la ruta. En este caso estamos trayendo las geometrías de los segmentos de la red que están en la tabla ruteoamg.ways mediante un join entre el id del segmento, edge, retornado por la función pgr_dijkstra y la llave primaria de la tabla ruteoamg.tabla ways, gid.
+Como la función pgr_dijkstra no retorna las geometrías vamos a generar una consulta que nos permita obtener las geometrías de la red para poder visualizar la ruta. En este caso estamos trayendo las geometrías de los segmentos de la red que están en la tabla ruteoamg.ways mediante un join entre el id del segmento, edge, retornado por la función pgr_dijkstra y la llave primaria de la tabla ruteoamg.ways, gid.
 
 ```sql
 WITH ruta as (SELECT * FROM pgr_dijkstra(
