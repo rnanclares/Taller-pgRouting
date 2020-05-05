@@ -698,8 +698,8 @@ Ahora vamos a seleccionar solo los tres hospitales más cercanos a cada localida
 
 ```sql
 CREATE TABLE ruteoinegi.locpobvshospitalesrank as ( SELECT foo.* FROM (
-SELECT cluesvshospitales.*, rank() over (partition BY start_vid ORDER BY agg_cost asc)
-FROM ruteoinegi.cluesvshospitales) foo WHERE RANK <= 3);
+SELECT localidadesVShospitales.*, rank() over (partition BY start_vid ORDER BY agg_cost asc)
+FROM ruteoinegi.localidadesVShospitales) foo WHERE RANK <= 3);
 ```
 
 El resultado de esta consulta es el costo de desplazamiento acumulado `agg_cost` desde cada localidad `start_vid` a todos los hospitales `end_vid`. Podemos mejorar la visualización de los resultados añadiendo los nombres de las localidades, los nombres de los hospitales y generando una linea usando `st_makeline` en caso de que queramos crear un mapa.
