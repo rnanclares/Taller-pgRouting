@@ -650,7 +650,7 @@ WITH ruteo as (
   JOIN ruteoinegi.union pt ON subquery.node = pt.id_union)
 SELECT node, geom, min(aggcost) AS aggcost
 FROM ruteo
-GROUP By node, geo);
+GROUP By node, geom);
 ```
 
 Esto creará la tabla "elnombrequetuquieras" en el `schema public`. Para los siguientes pasos vamos a necesitar QGIS así que a continuación vamos a configurar la conexión a la base de datos dentro de QGIS.
