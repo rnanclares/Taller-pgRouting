@@ -203,9 +203,9 @@ LEFT JOIN costarica.ways w ON ruta.edge = w.gid ;
 ```
 Podemos visualizar el resultado de la consulta directamente en pgAdmin4 haciendo clic en el botón con un ojo. También podriamo visualizarlo en QGIS.
 
-![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/dbeaver_resultado_pgr_dijkstra_1.png)
+![PgAdmin4 geometry viewer](./imgs/dbeaver_resultado_pgr_dijkstra_1.png)
 
-![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/dbeaver_mapa_1.png)
+![PgAdmin4 geometry viewer](./imgs/dbeaver_mapa_1.png)
 
 
 #### 3.1.2 Ejercicio 2 - Varios orígenes y un destino
