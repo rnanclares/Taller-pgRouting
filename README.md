@@ -1,11 +1,11 @@
-# **Taller pgRouting - RNU QGIS México 2019**
+# **Taller pgRouting - III Jornadas del SIG y TD Libre de Costa Rica**
 
-![Logo de pgRouting](https://docs.pgrouting.org/2.6/en/_static/pgrouting.png)
+![Logo de pgRouting](https://avatars.githubusercontent.com/u/324933?s=200&v=4)
 
 *Este taller está basado en los [Workshops de pgRouting de los FOSS4G](https://workshop.pgrouting.org/) sin los cuales hubiera sido imposible aprender a usar pgRouting. Gracias!*
 ## **1. ¿Qué es pgRouting?**
 
-pgRouting es una extensión para PostgreSQL/PostGIS que añade funcionalidades para ánalisis de redes y planificación de rutas. Esto nos permite realizar cálculos de rutas óptimas, áreas de servicio e iscocronas (con la ayuda de QGIS), desde la propia base de datos con los beneficios que esto conlleva:
+pgRouting es una extensión para PostgreSQL/PostGIS que añade funcionalidades para ánalisis de redes y planificación de rutas. Esto nos permite realizar cálculos de rutas óptimas, áreas de servicio e iscocronas (con la ayuda de PostGIS o QGIS), desde la propia base de datos con los beneficios que esto conlleva:
 * Los datos pueden ser modificados desde diversos tipos de clientes:  
   * SIG de Escritorio (QGIS, gvSIG, uDig, etc)
   * Aplicaciones web
@@ -21,34 +21,34 @@ La librería pgRouting contiene los siguientes algoritmos:
 * [Algoritmos bidireccionales](https://en.wikipedia.org/wiki/Bidirectional_search): Dijkstra y A* bidireccionales
 * [Problema del viajante](https://es.wikipedia.org/wiki/Problema_del_viajante)
 * Distancia manejando
-* Camino más corto con restricción de giros
+* [Camino más corto con restricción de giros](https://docs.pgrouting.org/3.2/es/pgr_trsp.html)
 * Etc.
 
 pgRouting es una librería de código abierto disponible con la licencia GPLv2 y soportada y mantenida por
 [Georepublic](http://georepublic.info/), [iMaptools](http://imaptools.com/) y una amplica comunidad de usarios.
 
-Una de las principales desarrolladoras es [Vicky Vergara](https://twitter.com/VickyVvergara)
+La mantenedora principal es [Vicky Vergara](https://twitter.com/VickyVvergara)
 
 ## **2. Estructura de datos**
 
-Los archivos para el taller los podemos descargar desde [aquí](https://drive.google.com/drive/folders/1t9sBO8x97giIzbaBvq3jbdqyqbU7W_yC?usp=sharing)
+Los archivos para el taller los podemos encontrar en la carpeta data del repositorio, están comprimidos en un zip que contiene el *dump* de la base de datos sobre la que vamos a trabajar.
 
-La estructura básica que necesitamos para empezar a trabajar con PgRouting es una capa de líneas (o tabla de base de datos) con una buena calidad topológica (que no tenga lineas desconectadas). Si queremos hacer cálculos en función del tiempo de desplazamiento necestaremos además un campo que contenga la velocidad máxima permitida en la vía y longitud de la linea (en metros). Si además queremos tener en cuenta el sentido de circulación necesitamos un atributo que nos indique el sentido de circulación o si la vía es de doble sentido.
+La estructura básica que necesitamos para empezar a trabajar con PgRouting es una capa de líneas (o tabla de base de datos) con una buena calidad topológica (que no tenga lineas desconectadas, líneas trazadas en el sentido equivocado, etc). Si queremos hacer cálculos en función del tiempo de desplazamiento necestaremos además un campo que contenga la velocidad máxima permitida en la vía y longitud de la linea (en metros). Si además queremos tener en cuenta el sentido de circulación necesitamos un atributo que nos indique el sentido de circulación o si la vía es de doble sentido.
 
-Además de la "capa" de líneas necesitamos una capa de nodos de la red. Estos nodos definen las conexiones entre calles y carreteras. La capa de lineas tiene que contener para cada segmento de la red cuál es el nodo de origen y el nodo de destino que conecta. Así que finalmente la capa de lineas tiene que contener dos atributos más, nodo de origen y nodo de estino (source y target).
+Además de la "capa" de líneas necesitamos una capa de nodos de la red. Estos nodos definen las conexiones entre calles y carreteras. La capa de lineas tiene que contener para cada segmento de la red cuál es el nodo de origen y el nodo de destino que conecta. Así que finalmente la capa de lineas tiene que contener dos atributos más, nodo de origen y nodo de estino (source y target). pgRouting tiene algunas herramientas para facilitar la creación de una red con la topología y los atributos necesarios, podéis encontrar más información [aquí - Crear una base de datos de Ruteo - Documentación de pgRouting](https://docs.pgrouting.org/3.2/es/pgRouting-concepts.html#create-a-routing-database)
 
 ### OpenStreetMap
 
-Una de las fuentes de datos con la que podemos trabajar es OpenStreetMap. Para ello necesitamos dos cosas:
+Una de las fuentes de datos con la que podemos trabajar es OpenStreetMap, ya que actualmente existen herramientas que nos permiten importar los datos con la estructura que requiere pgRouting. Para ello necesitamos dos cosas:
 * Descargar los datos de OSM desde:
   * https://www.openstreetmap.org (nos ubicamos el en el área de interés y luego hacemos click en Overpass API)
   * Descargamos los conglomerados a nivel subregión, país o ciudad desde https://download.geofabrik.de
-* Instalar [osm2pgrouting](https://github.com/pgRouting/osm2pgrouting)
+* Instalar [osm2pgrouting](https://github.com/pgRouting/osm2pgrouting). Existen paquetes para varios sistemas operativos.
 
 
-osm2pgrouting nos va a permitir generar toda la estructura de base de datos que necesitamos para pgRouting de forma sencilla y rápida. El único incoveniente es que si queremos procesar conjuntos de datos muy grandes (por ejemplo, todo un estado de México o el país completo) vamos a necesitar hacerlo por partes (eliminando el parámetro --clean) o contar con un servidor con una cantidad enorme de memoria RAM.
+osm2pgrouting nos va a permitir generar toda la estructura de base de datos que necesitamos para pgRouting de forma sencilla y rápida. El único incoveniente es que si queremos procesar conjuntos de datos muy grandes (por ejemplo, todo un estado de México o un país completo) vamos a necesitar hacerlo por partes (eliminando el parámetro --clean) o contar con un servidor o pc con suficiente memoria RAM.
 
-El ejemplo que aparece a continuación exportaría a nuestra base de datos PostgreSQL de nombre ruteo, el archivo que descargamos "tu_archivo_osm_xml.osm" usando la configuración en el archivo de configuración mapconfig.xml.
+El ejemplo que aparece a continuación importaría a nuestra base de datos PostgreSQL de nombre `ruteo`, el archivo que descargamos de Openstreetmap "tu_archivo_osm_xml.osm" usando la configuración en el archivo de configuración mapconfig.xml.
 
 ```bash
 osm2pgrouting --f tu_archivo_osm_xml.osm --conf mapconfig.xml --dbname ruteo --username postgres --clean
@@ -94,26 +94,27 @@ Database options:
  -W [ --password ] arg          Password for database access.
  ```
 
-El parámetro --conf nos permite utilizar un archivo de configuración para osm2pgrouting que va a definir que tipos de carreteras o vías queremos utilizar y cual es la velocidad de desplazamiento en cada tipo de vía. Por defecto vamos a encontrar 3 configuraciones en la carpeta /usr/share/osm2pgrouting/:
+El parámetro --conf nos permite utilizar un archivo de configuración para osm2pgrouting que va a definir que tipos de carreteras o vías queremos utilizar y cual es la velocidad de desplazamiento en cada tipo de vía. Por defecto vamos a encontrar 3 configuraciones en la carpeta `/usr/share/osm2pgrouting/` (la ubicación depende del sistema operativo):
 * Para bicicletas
 * Para automóviles
 * Para peatones
 
-Si queremos podemos modificar los archivos de coniguración para que se adapte a nuestras necesidades, qué tipo de vías vamos a importar (definido por los tipos de vías de OSM) y la velocidad máxima a utilizar paraa cada tipo de vía.
+Si queremos podemos modificar los archivos de coniguración para que se adapte a nuestras necesidades, qué tipo de vías vamos a importar (definido por los tipos de vías de OSM) y la velocidad máxima a utilizar para cada tipo de vía.
 
 #### Beneficios e incovenientes de Utilizar OSM
 **Pros:**
-1. Los datos están más actualizados que otras fuentes de información en México y se manejan como un único conjunto de datos (no son dos capas de información separadas como en el caso de INEGI, una para carreteras y otra para calles).
+1. Los datos se manejan como un único conjunto de datos, es decir no son dos capas de información separadas, una para carreteras y otra para calles en zonas urbanas.
 2. La información está en algunos casos más actualizada.
-3. Las líneas cuentan con todos los atributos necesarios para pgRouting
-4. Los nodos de conexión de la red siguen reglas precisas de manera que aunque dos lineas se crucen puede no existir un nodo de conexión porque sea un paso a desnivel, un tunel o un puente.
-5. En general facilita enormemente la creación de una red "ruteable"
+3. Las líneas cuentan con todos los atributos necesarios para pgRouting.
+4. Los nodos de conexión de la red siguen reglas precisas de manera que aunque dos lineas se crucen puede no existir un nodo de conexión ya sea porque hay un paso a desnivel, un tunel o un puente. Esto mejora la topología de la red y elimina posibles errores de conexión.
+5. En general facilita enormemente la creación de una red "ruteable".
 
 **Contras:**
-1. Puede que los datos en tu región no estén tan completos o actualizados como desearías
-2. La herramienta osm2pgrouting puede consumir enormes cantidades de memoría por lo que necesitamos hacer importaciones "incrementales" si queremos trabajar en regiones muy grandes (también podemos utilizar un servidor en la nube con mucha RAM para hacer el proceso y una vez creada la red descargarla a un servidor con menos memoria RAM o un PC).
+1. Puede que los datos en tu región no estén tan completos o actualizados como desearías. **Por eso te recomendamos que contribuyas a OSM.**
+2. La herramienta osm2pgrouting puede consumir enormes cantidades de memoria RAM por lo que necesitamos hacer importaciones "incrementales" si queremos trabajar en regiones muy grandes (también podemos utilizar un servidor en la nube o un PC con mucha RAM para hacer el proceso y una vez creada la red descargarla a un servidor con menos memoria RAM o un PC).
+3. No existen nodos "intermedios", es decir, si ruteamos desde un punto arbitrario vamos a tener que hacer algunos "trucos" para conseguir un buen resultado. Esto va a mejorar con las "nuevas" funciones `pgr_withPoints` incluida en la versión 3.2.0
 
-### INEGI
+### INEGI (México)
 
 La [Red Nacional de Caminos de INEGI](https://www.inegi.org.mx/app/biblioteca/ficha.html?upc=889463674641) soporta el estándar internacional ISO 14825:2011 Intelligent Transport Systems_Geographic Data Files_GDF5.0, la cual integra los elementos necesarios para ruteo, ya tiene el formato necesario para pgRouting:
 * Capa red_vial: Contiene las carreteras. Tiene como atributos VELOCIDAD, UNION_INI (nodo de inicio) y UNION_FIN (nodo de destino) y LONGITUD.
@@ -128,26 +129,24 @@ La [Red Nacional de Caminos de INEGI](https://www.inegi.org.mx/app/biblioteca/fi
 
 ## **Conexión a la base de datos**
 
-Para agilizar el taller no vamos a realizar la instalación de PostgreSQL, PostGIS y pgRouting. Utilizaremos una base de datos en un servidor remoto. Para conectar al servidor vamos a usar pgAdmin4.
+Para agilizar el taller no vamos a realizar la instalación de PostgreSQL, PostGIS y pgRouting. Utilizaremos una base de datos en un servidor remoto. Para conectar al servidor vamos a usar [pgAdmin4](https://pgadmin.org), [dBeaver](https://dbeaver.io/) o [QGIS](https://qgis.org).
 
 IP del Servidor: xx.xx.xx.xx
 
-Los datos están en los schemas `ruteoinegi` y `ruteoamg`.
-
-Pueden descargar la base de datos completa desde [aquí](https://drive.google.com/drive/folders/1t9sBO8x97giIzbaBvq3jbdqyqbU7W_yC?usp=sharing), es un dump con todos los datos del taller.
+Los datos están en la base de datos `crrouting` en el schema `costarica`.
 
 ## **3. Algoritmos de pgRouting**
 
 *NOTA:*
 * Muchas de las funciones de pgRouting incluyen parámetros del tipo sql::text, es decir una consulta sql como una cadena de texto. Esto puede parecer algo confuso al principio pero permite gran flexibilidad ya que el usuario puede pasar cualquier sentencia `SELECT` como argumento para una función siempre que el resultado de dicho `SELECT` contenga el número de atributos requerido y los nombres de atributos correctos.
-* La mayoría de los algoritmos de pgRouting no necesitan la geometría de la red.
+* La mayoría de los algoritmos de pgRouting no necesitan la geometría de la red, **excepto A*** que utiliza las coordenadas de los nodos de inicio y fin de cada segmento de la red durante el cálculo de rutas.
 * La mayoría de los algoritmos de pgRouting no retornan una geometría, si no una lista ordenada de nodos o segmentos.
 
 ### 3.1 pgr_dijkstra
 
-El algoritmo de Dijkstra fue el primer algorimto implementado en pgRouting. Solo requiere los atributos , `ìd` , `source` y `target` y `cost`. Podemos especificar si el grafo es dirigido o no dirigido (tendrá en cuenta el sentido de las vias o no).
+El algoritmo de Dijkstra fue el primer algorimto implementado en pgRouting. Solo requiere los atributos , `ìd` , `source` y `target`, `cost` y `reverse_cost` (opcional). Podemos especificar si el grafo es dirigido o no dirigido (tendrá en cuenta el sentido de las vias o no, parámetro `directed`).
 
-**Resumen de signaturas**
+**Resumen de Firmas**
 ```sql
 pgr_dijkstra(edges_sql, start_vid,  end_vid)
 pgr_dijkstra(edges_sql, start_vid,  end_vid  [, directed])
@@ -156,20 +155,25 @@ pgr_dijkstra(edges_sql, start_vids, end_vid  [, directed])
 pgr_dijkstra(edges_sql, start_vids, end_vids [, directed])
 
 RETURNS SET OF (seq, path_seq [, start_vid] [, end_vid], node, edge, cost, agg_cost)
-    OR EMPTY SET
+OR EMPTY SET
 ```
 
-La primera opción es un origen y un destino, la segunda es igual pero dirigida, la tercera un origen y muchos destinos (1:n), la cuarta muchos orígenes y un destino (n:1) y la última es muchos origens y muchos destinos (n:m).
+Las firmas corresponden a las siguientes combinaciones:
+ 1. Un origen y un destino
+ 2. Igual pero dirigido
+ 3. Un origen y muchos destinos (1:n)
+ 4. Muchos orígenes y un destino (n:1)
+ 5. Muchos origenes y muchos destinos (n:m)
 
 #### 3.1.1 Ejercicio 1 - Un origen y un destino
 Como comentamos en la nota anterior uno de los parámetros es un `SELECT` que se lo pasamos a la función como una cadena de texto. También hay que dar un alias al parámetro length_m para que la función entienda que es el costo. El costo puede ser cualquier atributo, en este caso usamos el atributo length_m pero podría ser tiempo en segundos (la ruta más rápida) o cualquier atributo que represente el costo de desplazamiento por la red. Después del `SELECT` tenemos los IDs de los nodos entre los que queremos calcular la ruta más corta. Finalmente tenemos el parámetro `directed` que nos indica si queremos que la ruta tenga en cuenta el sentido de circulación o no.
 
 ```sql
- SELECT * FROM pgr_dijkstra('SELECT gid as id,
+SELECT * FROM pgr_dijkstra('SELECT gid as id,
          source,
          target,
          length_m AS cost
-        FROM ruteoamg.ways',
+        FROM costarica.ways',
     79012, 35280,
     directed := false)
 ```
@@ -182,7 +186,7 @@ El resultado de la consulta es una tabla con las columnas:
 * `cost`: Costo de desplazamiento por el segmento
 * `agg_cost`: Costo agregado para cada paso de la ruta  
 
-Como la función pgr_dijkstra no retorna las geometrías vamos a generar una consulta que nos permita obtener las geometrías de la red para poder visualizar la ruta. En este caso estamos trayendo las geometrías de los segmentos de la red que están en la tabla ruteoamg.ways mediante un join entre el id del segmento, edge, retornado por la función pgr_dijkstra y la llave primaria de la tabla ruteoamg.ways, gid.
+Como la función pgr_dijkstra no retorna las geometrías vamos a generar una consulta que nos permita obtener las geometrías de la red para poder visualizar la ruta. En este caso estamos trayendo las geometrías de los segmentos de la red que están en la tabla costarica.ways mediante un join entre el id del segmento, edge, retornado por la función pgr_dijkstra y la llave primaria de la tabla costarica.ways, gid.
 
 ```sql
 WITH ruta as (SELECT * FROM pgr_dijkstra(
@@ -190,18 +194,18 @@ WITH ruta as (SELECT * FROM pgr_dijkstra(
          source,
          target,
          length_m AS cost
-        FROM ruteoamg.ways',
+        FROM costarica.ways',
     79012, 35280,
     directed := false))
-SELECT ruta.*, b.the_geom
+SELECT ruta.*, w.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid ;
+LEFT JOIN costarica.ways w ON ruta.edge = w.gid ;
 ```
 Podemos visualizar el resultado de la consulta directamente en pgAdmin4 haciendo clic en el botón con un ojo. También podriamo visualizarlo en QGIS.
 
-![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/pgadmin_geometry_viewer.png)
+![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/dbeaver_resultado_pgr_dijkstra_1.png)
 
-![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/ejercicio_1_pgadmin.png)
+![PgAdmin4 geometry viewer](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/dbeaver_mapa_1.png)
 
 
 #### 3.1.2 Ejercicio 2 - Varios orígenes y un destino
