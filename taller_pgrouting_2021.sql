@@ -222,8 +222,17 @@ WITH ruta as (SELECT * FROM pgr_dijkstra(
          cost_s * 1000 / 3600 as cost,
          reverse_cost_s * 1000 / 3600 as reverse_cost
         FROM costarica.ways',
-    154802, 149541,
+    154802, 22833,
     directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
 LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
+
+# Ejercicio 10
+
+SELECT tag_id, tag_key, tag_value
+FROM costarica.configuration
+ORDER BY tag_id;
+
+
+

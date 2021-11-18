@@ -559,12 +559,15 @@ Para este ejericio vamos a calcular la distancia de manejo desde el Hospital San
 Para realizar este proceso hemos utilizado la consulta que aparece a continuación. En ella para cada hospital calculamos cual es el nodo de la red (tabla `costarica.ways_vertices_pgr`) más cercano a cada hospital y la distancia a la que se encuentra. El atributo de la distancia nos da una idea de lo correcto que puede ser el cálculo de una ruta para cada hospital.  Este proceso de encontrar el nodo más cercano de la red lo vamos a tener que realizar siempre ya que para los parámetros de `start_vid` y `end_vid` de los diferentes algoritmos siempre tenemos que utilizar las IDs de los nodos de la red (en este caso es el atributo `id`)
 
 ```sql
+ALTER TABLE costarica.hospitales
+ADD COLUMN id_nodo integer;
+
 WITH foo as (
 SELECT
-hospitales.id,
+hospitales.gid,
 closest_node.id_union,
 closest_node.dist
-FROM ruteoinegi.hospitales
+FROM costarica.hospitales
 CROSS JOIN LATERAL -- Este CROSS JOIN lateral funciona como un bucle "for each"
 (SELECT
  id,
@@ -574,10 +577,10 @@ CROSS JOIN LATERAL -- Este CROSS JOIN lateral funciona como un bucle "for each"
  LIMIT 1 -- Este limit 1 hace que solo obtengamos el nodo más cercano de la red
 ) AS closest_node)
 UPDATE costarica.hospitales -- Finalmente actualizamos la capa de hospitales
-SET id = foo.id,
+SET id_nodo = foo.id,
 distancia = foo.dist
 FROM foo
-WHERE hospitales.id = foo.id
+WHERE hospitales.gid = foo.gid
 ```
 Ahora ya estamos listos para usar el algoritmo pgr_drivingDistance, a partir del que luego podemos generar las isocronas (utilizando QGIS).
 
