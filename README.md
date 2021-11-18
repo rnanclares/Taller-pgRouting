@@ -68,7 +68,7 @@ General:
  -f [ --file ] arg                     REQUIRED: Name of the osm file.
  -c [ --conf ] arg (=/usr/share/osm2pgrouting/mapconfig.xml)
                                        Name of the configuration xml file.
- --schema arg                          Database sch2pgrouting -f map.osm -c mapconfig_for_cars_mod.xml -d gislocal -p 5433 --schema ruteoamg -U gisadmin -W privacidad% --clean --chunk 20000ema to put tables.
+ --schema arg                          Database sch2pgrouting -f map.osm -c mapconfig_for_cars_mod.xml -d gislocal -p 5433 --schema costarica -U user -W password --clean --chunk 20000ema to put tables.
                                          blank: defaults ´to default schema
                                                dictated by PostgreSQL
                                                search_path.
@@ -159,7 +159,7 @@ OR EMPTY SET
 ```
 
 Las firmas corresponden a las siguientes combinaciones:
- 1. Un origen y un destino
+ 1. Un origen y un destino (1:1)
  2. Igual pero dirigido
  3. Un origen y muchos destinos (1:n)
  4. Muchos orígenes y un destino (n:1)
@@ -203,14 +203,14 @@ LEFT JOIN costarica.ways w ON ruta.edge = w.gid ;
 ```
 Podemos visualizar el resultado de la consulta directamente en pgAdmin4 haciendo clic en el botón con un ojo. También podriamo visualizarlo en QGIS.
 
-![PgAdmin4 geometry viewer](./imgs/dbeaver_resultado_pgr_dijkstra_1.png)
+![Dbeaver results viewer 1](./imgs/dbeaver_resultado_pgr_dijkstra_1.png)
 
-![PgAdmin4 geometry viewer](./imgs/dbeaver_mapa_1.png)
+![Dbeaver geometry viewer 1](./imgs/dbeaver_mapa_1.png)
 
 
 #### 3.1.2 Ejercicio 2 - Varios orígenes y un destino
 En este caso vamos especificar varios orígenes y un destino:
-* Los orígenes son los nodos: 3443 y 29539
+* Los orígenes son los nodos: 3443 y 79012
 * Para el costo vamos a volver a utilizar el atributo length_m
 
 Para pasarle los origenes a la función pgr_dijkstra tenemos que usar un `ARRAY` (arreglo: conjunto de elementos del mismo tipo).
@@ -220,8 +220,8 @@ Para pasarle los origenes a la función pgr_dijkstra tenemos que usar un `ARRAY`
          source,
          target,
          length_m AS cost
-        FROM ruteoamg.ways',
-    ARRAY[3443, 29539], 35280,
+        FROM costarica.ways',
+    ARRAY[3443, 79012], 35280,
     directed := false)
 ```
 ```sql
@@ -230,28 +230,28 @@ WITH ruta as (SELECT * FROM pgr_dijkstra(
          source,
          target,
          length_m AS cost
-        FROM ruteoamg.ways',
-    ARRAY[3443, 29539], 35280,
+        FROM costarica.ways',
+    ARRAY[3443, 79012], 35280,
     directed := false))
-SELECT ruta.*, b.the_geom
+SELECT ruta.*, w.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways w ON ruta.edge = w.gid;
 ```
 
 #### 3.1.3 Ejercicio 3 - Un solo origen varios destinos
 
 En este caso vamos especificar un origen y varios destinos:
-* El origen es el nodos: 67272
-* Los nodos de destino son: 1017 y 55134
+* El origen es el nodos: 154802 (Escuela de Geografía - Universidad de Costa Rica)
+* Los nodos de destino son: 149541 (Estadio Nacional) y 267 (Parque de la Paz)
 * Para el costo vamos a utilizar el tiempo de desplazamiento suponiendo una velocidad constante de 20 km/h (5.56 m/s).`v = 5.56 m/s` y `t=d/v`
 
 ```sql
- SELECT * FROM pgr_dijkstra('SELECT gid as id,
+SELECT * FROM pgr_dijkstra('SELECT gid as id,
          source,
          target,
          length_m / 5.56 AS cost
-        FROM ruteoamg.ways',
-    67272, ARRAY[1017,  55134],
+        FROM costarica.ways',
+    154802, ARRAY[149541, 267],
     directed := false)
 ```
 ```sql
@@ -259,30 +259,35 @@ WITH ruta as (SELECT * FROM pgr_dijkstra('SELECT gid as id,
         source,
         target,
         length_m / 5.56 AS cost
-       FROM ruteoamg.ways',
-   67272, ARRAY[1017,  55134],
+       FROM costarica.ways',
+   154802, ARRAY[149541, 267],
    directed := false))
 SELECT ruta.*, b.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ```        
 
-¿Qué ocurre si cambiamos el parámetro de dirigido a no dirigido (`directed:=false`)?¿En qué unidades estamos midiendo el costo de desplazamiento en este último ejercicio?
+¿Qué ocurre si cambiamos el parámetro de no dirigido a dirigido (`directed:=true`)?¿En qué unidades estamos midiendo el costo de desplazamiento en este último ejercicio?
+
+![Dbeaver results not directed](./imgs/not_directed.png)
+
+![Dbeaver results directed](./imgs/directed.png)
+
 
 #### 3.1.4 Ejercicio 4 - Varios orígenes y varios destinos
 
 En este caso vamos especificar varios origenes y varios destinos:
-* El origen es el nodos: 67272 y 133535 (Hoteles recomendados)
-* Los nodos de destino son: 1017 y 55134 (Sedes del evento QGIS RNU 2019 - CUCSH y CUAAD)
+* El origen es el nodos: 154802 y 176389 (Geografía y Económicas)
+* Los nodos de destino son: 149541 (Estadio Nacional) y 267 (Parque de la Paz)
 * Para el costo vamos a utilizar el tiempo de desplazamiento suponiendo una velocidad constante de 20 km/h (5.56 m/s) `v = 5.56 m/s` y `t=d/v`, pero en este caso vamos a obtener el tiempo en minutos.
 
 ```sql
- SELECT * FROM pgr_dijkstra('SELECT gid as id,
+SELECT * FROM pgr_dijkstra('SELECT gid as id,
          source,
          target,
          length_m / 5.56 / 60 AS cost
-        FROM ruteoamg.ways',
-    ARRAY[67272, 133535], ARRAY[1017,  55134],
+        FROM costarica.ways',
+    ARRAY[154802, 176389], ARRAY[149541, 267],
     directed := false)
 ```
 ```sql
@@ -290,24 +295,20 @@ WITH ruta as (SELECT * FROM pgr_dijkstra('SELECT gid as id,
         source,
         target,
         length_m / 5.56 / 60 AS cost
-       FROM ruteoamg.ways',
-   ARRAY[67272, 133535], ARRAY[1017,  55134],
+       FROM costarica.ways',
+   ARRAY[154802, 176389], ARRAY[149541, 267],
    directed := false))
-SELECT ruta.*, b.the_geom
+SELECT ruta.*, w.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways w ON ruta.edge = w.gid;
 ```    
 
-*NOTA*: Si inspeccionamos el resultado de la consulta, veremos que hay algunas filas que tiene edge=-1, estas filas nos indican el costo total de cada ruta:
-* De 67272 a 1017 tardaremos 9.33 minutos.
-* De 67272 a 55134 tardaremos 27.91 minutos.
-* De 133535 a 1017 tardaremos 14.60 minutos.
-* De 133535 a 32.70 tardaremos 32.70 miuntos.
+*NOTA*: Si inspeccionamos el resultado de las consulta, veremos que hay algunas filas que tiene edge=-1, estas filas nos indican el costo total de cada ruta.
 
 ### 3.2 pgr_dijkstraCost
-Si lo que queremos es calcular el costo total de desplazamiento, sin necesidad de buscar en los resultados de pgr_dijkstra podemos utilizar `pgr_dijkstraCost` que nos arrojará resultados más compactos.
+Si lo que queremos es calcular el costo total de desplazamiento podemos simplemente utilizar `pgr_dijkstraCost` que nos resultados más simples. El nodo de origen, el de destino y el costo acumulado total.
 
-**Resumen de signaturas**
+**Resumen de Firmas**
 ```sql
 pgr_dijkstraCost(edges_sql, start_vid,  end_vid)
 pgr_dijkstraCost(edges_sql, start_vid,  end_vid  [, directed])
@@ -319,14 +320,17 @@ RETURNS SET OF (start_vid, end_vid, agg_cost)
     OR EMPTY SET
 ```
 
+De nuevo, aquí tenemos las mismas combinaciones que antes: 1:1, 1:n, n:1 y n:m.
+
 #### 3.2.1 Ejercicio 5 - Calcular el costo total entre varios orígenes y varios destinos
+Aquí el costo vuelve a ser el tiempo en minutos suponiendo una velocidad constante de 20 km/h (5.56 m/s).
 ```sql
 SELECT * FROM pgr_dijkstraCost('SELECT gid as id,
         source,
         target,
         length_m / 5.56 / 60 AS cost
-       FROM ruteoamg.ways',
-   ARRAY[67272, 133535], ARRAY[1017,  55134],
+       FROM costarica.ways',
+   ARRAY[154802, 176389], ARRAY[149541, 267],
    directed := false)
 ```
 #### 3.2.2 Ejercicio 6 - Resumen de los costos totales por origen entre varios orígenes y varios destinos
@@ -337,19 +341,18 @@ FROM pgr_dijkstraCost('SELECT gid as id,
         source,
         target,
         length_m / 5.56 / 60 AS cost
-       FROM ruteoamg.ways',
-   ARRAY[67272, 133535], ARRAY[1017,  55134],
+       FROM costarica.ways',
+   ARRAY[154802, 176389], ARRAY[149541, 267],
    directed := false)
 GROUP BY start_vid
 ORDER BY start_vid;
 ```
-
-¿En cuál de los dos hoteles conviene más hospedarse?
+¿En cuál facultad nos conviene más estudiar si queremos ir al estadio y al parque frecuentemente?
 
 ## **4. Funciones Avanzadas de Ruteo**
 
 ### **4.1 Ruteo para vehículos**
-Una consulta para ruteo de vehículos es diferente a una para peatones:
+Una consulta para ruteo de vehículos es diferente a una para peatones. Algunas diferencias:
 * Los segmentos de la red de carreteras suelen considerarse "dirigidos" (pueden tener limitaciones en cuanto al sentido en el que pueden recorrerse)
 * El costo puede ser:
   * Distancia
@@ -367,12 +370,12 @@ Dependiendo de la geometría, la forma válida:
 
 De manera que un "sentido contrario" se indica mediante un valor negativo y no es insertado en el grafo para su procesamiento.
 
-Para vías de doble sentido `cost >= 0` y `reverse_cost >= 0` y sus valores pueden ser diferentes. Por ejemplo, es más rápido ir cuesta abajo en una carretera en pendiente. En general `cost` y `reverse_cost` no tienen porque ser distancias, en realidad pueden ser casi cualquier cosa, por ejemplo: tiempo, pendiente, superficie, tipo de carretera, o una combinación de varios parámetros.
+Para vías de doble sentido `cost >= 0` y `reverse_cost >= 0` y sus valores pueden ser diferentes. Por ejemplo, es más rápido ir hacia abajo en una carretera con pendiente que hacia arriba. En general `cost` y `reverse_cost` no tienen porque ser distancias, en realidad pueden ser casi cualquier cosa, por ejemplo: tiempo, pendiente, superficie, tipo de carretera, o una combinación de varios parámetros.
 
 #### 4.1.1 Ejercicio 7 - Ruteo para vehículos - Ida
-Desde el Hotel Portobello al CUCSH:
-* El vehículo va desde el nodo 67272 al nodo 1017
-* Usaremos los atributos `cost` y `reverse_cost` que están en grados.
+Desde el Escuela de Geografía al Estado Nacional:
+* El vehículo va desde el nodo 154802 al nodo 149541
+* Usaremos los atributos `cost` y `reverse_cost` que están en grados decimales, debido al sistema de referencia de coordenadas que osm2pgrouting usa por defecto (EPSG:4326).
 
 ```sql
 SELECT * FROM pgr_dijkstra('SELECT gid as id,
@@ -380,8 +383,8 @@ SELECT * FROM pgr_dijkstra('SELECT gid as id,
          target,
          cost,
          reverse_cost
-        FROM ruteoamg.ways',
-    67272, 1017,
+        FROM costarica.ways',
+    154802, 149541,
     directed := true);
 ```
 
@@ -392,18 +395,18 @@ WITH ruta as (SELECT * FROM pgr_dijkstra(
          target,
          cost,
          reverse_cost
-        FROM ruteoamg.ways',
-     67272, 1017,
+        FROM costarica.ways',
+    154802, 149541,
     directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ```
 
 #### 4.1.2 Ejercicio 8 - Ruteo para vehículos - Regreso
-Desde el CUCSH al Hotel Portobello:
-* El vehículo va desde el nodo 1017 al nodo 67272
-* Usaremos los atributos `cost` y `reverse_cost` que están en grados.
+Desde el Estado Nacional a la Escuela de Geografía:
+* El vehículo va desde el nodo 149541 al nodo 154802.
+* Usaremos los atributos `cost` y `reverse_cost` que están en grados decimales.
 
 ```sql
 SELECT * FROM pgr_dijkstra('SELECT gid as id,
@@ -411,8 +414,8 @@ SELECT * FROM pgr_dijkstra('SELECT gid as id,
          target,
          cost,
          reverse_cost
-        FROM ruteoamg.ways',
-    1017, 67272,
+        FROM costarica.ways',
+     149541, 154802,
     directed := true);
 ```
 
@@ -423,22 +426,22 @@ WITH ruta as (SELECT * FROM pgr_dijkstra(
          target,
          cost,
          reverse_cost
-        FROM ruteoamg.ways',
-     1017, 67272,
+        FROM costarica.ways',
+    149541, 154802,
     directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ```
 En un grafo dirigido las rutas de ida y retorno son casi siempre diferentes.
 
 #### 4.1.3 Ejercicio 9 - Ruteo para vehículos - Cuando el tiempo es oro
-Desde el CUCSH al Hotel Portobello:
-* El vehículo va desde el nodo 1017 al nodo 67272
-* El costo es `$1000 por hora`
+Desde el Escuela de Geografía al faro de Punta Arenas:
+* El vehículo va desde el nodo 154802 al nodo 22833
+* El costo es `₡1000 por hora`
 * Usaremos los atributos `cost_s` y `reverse_cost_s` que están en segundos.
 * La duración del viaje en horas es `cost_s / 3600`
-* El costo del viaje en pesos es `cost_s * 1000 / 3600`
+* El costo del viaje en colones es `cost_s * 1000 / 3600`
 
 Los atributos `cost_s` y `reverse_cost_s` se calculan usando la longitud de un segmento de la red y los atributos `maxspeed_forward` y `maxspeed_backward` (velocidad máxima y velocidad máxima hacia atrás). Estas velocidades vienen definidas en el archivo de configuración que utilizamos junto con osm2pgrouting para importar los datos a nuestra base de datos.
 
@@ -448,8 +451,8 @@ SELECT * FROM pgr_dijkstra('SELECT gid as id,
          target,
          cost_s * 1000 / 3600 as cost,
          reverse_cost_s * 1000 / 3600 as reverse_cost
-        FROM ruteoamg.ways',
-    1017, 67272,
+        FROM costarica.ways',
+    154802, 22833,
     directed := true);
 ```
 
@@ -460,37 +463,37 @@ WITH ruta as (SELECT * FROM pgr_dijkstra(
          target,
          cost_s * 1000 / 3600 as cost,
          reverse_cost_s * 1000 / 3600 as reverse_cost
-        FROM ruteoamg.ways',
-     1017, 67272,
+        FROM costarica.ways',
+    154802, 22833,
     directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ```
-Como podemos observar las rutas son idénticas y los costos son directamente proporcionales.
+Como podemos la ruta prefiere las carreteras de alta velocidad.
 
 ### **4.2 Manipulación de los costos**
 
 Cuando usamos datos de OSM importados a través de la herramienta osm2pgrouting, se crean algunas tablas adicionales, una de ellas se llama `configuration`. Esta tabla contiene los parámetros de importación que definimos en el archivo `mapconfig_for_cars_mod.xml`. Vamos a explorar los `tag_id` (identificador de etiqueta) de red.
 ```sql
 SELECT tag_id, tag_key, tag_value
-FROM ruteoamg.configuration
+FROM costarica.configuration
 ORDER BY tag_id;
 ```
 ```sql
 SELECT *
-FROM ruteoamg.configuration;
+FROM costarica.configuration;
 ```
 #### 4.2.1 Ejercicio 10 - Ruteo para vehículos sin penalización
 
-Para modificar el comportamiento de los algoritmos vamos añadir una columna llamada `penalty` a la tabla `ruteoamg.configuration` y usarla para recalcular el costo de desplzamiento en función de unos criterios definidos por nosotros mismos. A continuación mostramos algunos ejemplos:
+Para modificar el comportamiento de los algoritmos vamos añadir una columna llamada `penalty` a la tabla `costarica.configuration` y usarla para recalcular el costo de desplzamiento en función de unos criterios definidos por nosotros mismos. A continuación mostramos algunos ejemplos:
 
 ```sql
-ALTER TABLE ruteoamg.configuration ADD COLUMN penalty FLOAT;
+ALTER TABLE costarica.configuration ADD COLUMN penalty FLOAT;
 -- Sin penalización
-UPDATE ruteoamg.configuration SET penalty=1;
+UPDATE costarica.configuration SET penalty=1;
 ```
-Ahora al calcular la ruta vamos a traer el atributo `penalty` haciendo un `join` con la tabla `ruteoamg.configuration` usando el campo `tag_id` que también está en la tabla `ruteoamg.ways`
+Ahora al calcular la ruta vamos a traer el atributo `penalty` haciendo un `join` con la tabla `costarica.configuration` usando el campo `tag_id` que también está en la tabla `costarica.ways`
 ```sql
 WITH ruta as (SELECT * FROM pgr_dijkstra('
     SELECT gid AS id,
@@ -498,13 +501,13 @@ WITH ruta as (SELECT * FROM pgr_dijkstra('
         target,
         cost_s * penalty AS cost,
         reverse_cost_s * penalty AS reverse_cost
-    FROM ruteoamg.ways JOIN ruteoamg.configuration
+    FROM costarica.ways JOIN costarica.configuration
     USING (tag_id)',
     1017, 67272,
    directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ```
 #### 4.2.2 Ejercicio 10 - Ruteo para vehículos con penalización
 
@@ -512,7 +515,7 @@ Vamos a cambiar los valores de `penalty` para que algunos tipos de vía no sea u
 
 ```sql
 --- Vamos a modificar el penalty de las vías primarias
-UPDATE ruteoamg.configuration SET penalty=100 WHERE tag_value = 'primary';
+UPDATE costarica.configuration SET penalty=100 WHERE tag_value = 'primary';
 ```
 Ahora volvemos a calcular la ruta:
 ```sql
@@ -522,13 +525,13 @@ WITH ruta as (SELECT * FROM pgr_dijkstra('
         target,
         cost_s * penalty AS cost,
         reverse_cost_s * penalty AS reverse_cost
-    FROM ruteoamg.ways JOIN ruteoamg.configuration
+    FROM costarica.ways JOIN costarica.configuration
     USING (tag_id)',
     1017, 67272,
    directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
-LEFT JOIN ruteoamg.ways b ON ruta.edge = b.gid;
+LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ```
 ¿Qué ha cambiado con respecto al ejercicio 9?
 
