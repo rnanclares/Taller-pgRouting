@@ -486,7 +486,7 @@ FROM costarica.configuration;
 ```
 #### 4.2.1 Ejercicio 10 - Ruteo para vehículos sin penalización
 
-Para modificar el comportamiento de los algoritmos vamos añadir una columna llamada `penalty` a la tabla `costarica.configuration` y usarla para recalcular el costo de desplzamiento en función de unos criterios definidos por nosotros mismos. A continuación mostramos algunos ejemplos:
+Para modificar el comportamiento de los algoritmos vamos añadir una columna llamada `penalty` a la tabla `costarica.configuration` y usarla para recalcular el costo de desplazamiento en función de unos criterios definidos por nosotros mismos. A continuación mostramos algunos ejemplos:
 
 ```sql
 ALTER TABLE costarica.configuration ADD COLUMN penalty FLOAT;
@@ -503,7 +503,7 @@ WITH ruta as (SELECT * FROM pgr_dijkstra('
         reverse_cost_s * penalty AS reverse_cost
     FROM costarica.ways JOIN costarica.configuration
     USING (tag_id)',
-    1017, 67272,
+    154802, 22833,
    directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
@@ -527,7 +527,7 @@ WITH ruta as (SELECT * FROM pgr_dijkstra('
         reverse_cost_s * penalty AS reverse_cost
     FROM costarica.ways JOIN costarica.configuration
     USING (tag_id)',
-    1017, 67272,
+    154802, 22833,
    directed := true))
 SELECT ruta.*, b.the_geom
 FROM ruta
@@ -536,11 +536,11 @@ LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 ¿Qué ha cambiado con respecto al ejercicio 9?
 
 ### **4.3 Isocronas**
-Las isocronas son iso-lineas que unen puntos con el mismo tiempo de deslazamiento respecto a un origen. Para este ejercicio vamos a usar la Red Nacional de Caminos de INEGI que ya está precargada en la base de datos, una capa de hospitales públicos generada a partir de datos de la Secretaría de Salud ([Catálogo de Clave Única de Establecimientos de Salud - CLUES](http://www.dgis.salud.gob.mx/contenidos/sinais/s_clues.html)), y la función de pgRouting `pgr_drivingDistance`.
+Las isocronas son iso-lineas que unen puntos con el mismo tiempo de deslazamiento respecto a un origen. Para este ejercicio vamos a usar la red de carreteras de OSM, y la función de pgRouting `pgr_drivingDistance`.
 
 #### 4.3.1 pgr_drivingDistance
 
-La función pgr_drivingDistance calcula la distancia manejando desde uno o varios nodos iniciales. Usando el algoritmo de Dijkstra extrae todos los nodos que tengan un costo de desplazamiento igual o menor al valor `distance`, este parámetro puede ser en unidades de tiempo o distancia (las mismas que el parámetro de costo que vayamos a utilizar).
+La función pgr_drivingDistance calcula la distancia manejando/conduciendo desde uno o varios nodos iniciales. Usando el algoritmo de Dijkstra extrae todos los nodos que tengan un costo de desplazamiento igual o menor al valor `distance`, este parámetro puede ser en unidades de tiempo o distancia (las mismas que el parámetro de costo que vayamos a utilizar).
 
 **Sumario de Signaturas**
 
@@ -553,20 +553,10 @@ RETURNS SET OF (seq, [start_vid,] node, edge, cost, agg_cost)
 ```
 El algoritmo retorna una sequencia, el nodo de inicio `start_vid,`, el nodo actual de la ruta `node`, el segmento recorrido `edge` para llegar al nodo actual, el costo y el costo acumulado desde `start_vid` a `node`.
 
-Para calcular el parámetro de costo `cost_s` en la RNC de INEGI podemos utilizar los atributos `longitud` y `velocidad`, donde `cost_s = longitud / (velocidad * 1000 / 3600)` para obtener el costo en segundos.
-
-```sql
-ALTER TABLE ruteoinegi.red_vial ADD COLUMN cost_s FLOAT;
-```
-```sql
-UPDATE ruteoinegi.red_vial
-SET cost_s = longitud / (velocidad * 1000 / 3600);
-```
-
 #### 4.3.2 Ejercicio 11 - Un solo origen
-Para este ejericio vamos a calcular la distancia de manejo desde el Hospital General Regional 46 del IMSS (`id_union = 635443`) y `distance = 3600` (en segundos). En parmetro de `id_union` lo hemos calculado previamente asignando el nodo más cercano de la RNC a todos los hospitales. Si observamos la tabla `ruteoinegi.red_vial` veremos que tiene dos atributos `id_union` y `distancia`, este segundo atributo nos indica la distancia lineal entre el punto donde está ubicado un hospital y el nodo más cercano de la red, que podemos encontrar en la tabla `ruteoinegi.union`.
+Para este ejericio vamos a calcular la distancia de manejo desde el Hospital San Rafael de Alajuela (`id = 155390`) y `distance = 1800` (en segundos). En parmetro de `id` lo hemos calculado previamente asignando el nodo más cercano de la red de carreteras de OSM.
 
-Para realizar este proceso hemos utilizado la consulta que aparece a continuación. En ella para cada hospital calculamos cual es el nodo de la red (tabla `ruteoinegi.union`) más cercano a cada hospital y la distancia a la que se encuentra. El atributo de la distancia nos da una idea de lo correcto que puede ser el cálculo de una ruta para cada hospital. Esto es necesario ya que la RNC, como ya habíamos comentado, no cuenta con toda la red de calles en las zonas urbanas y tampoco están algunos caminos/terracerías de zonas rurales. Este proceso de encontrar el nodo más cercano de la red lo vamos a tener que realizar siempre ya que para los parámetros de `start_vid` y `end_vid` de los diferentes algoritmos siempre tenemos que utilizar las IDs de los nodos de la red (en este caso es el atributo `id_union`)
+Para realizar este proceso hemos utilizado la consulta que aparece a continuación. En ella para cada hospital calculamos cual es el nodo de la red (tabla `costarica.ways_vertices_pgr`) más cercano a cada hospital y la distancia a la que se encuentra. El atributo de la distancia nos da una idea de lo correcto que puede ser el cálculo de una ruta para cada hospital.  Este proceso de encontrar el nodo más cercano de la red lo vamos a tener que realizar siempre ya que para los parámetros de `start_vid` y `end_vid` de los diferentes algoritmos siempre tenemos que utilizar las IDs de los nodos de la red (en este caso es el atributo `id`)
 
 ```sql
 WITH foo as (
@@ -577,14 +567,14 @@ closest_node.dist
 FROM ruteoinegi.hospitales
 CROSS JOIN LATERAL -- Este CROSS JOIN lateral funciona como un bucle "for each"
 (SELECT
- id_union,
- ST_Distance("union".geom, hospitales.geom) as dist
+ id,
+ ST_Distance(ways_vertices_pgr.the_geom, hospitales.geom) as dist
  FROM ruteoinegi."union"
  ORDER BY ST_Distance("union".geom, hospitales.geom)
  LIMIT 1 -- Este limit 1 hace que solo obtengamos el nodo más cercano de la red
 ) AS closest_node)
-UPDATE ruteoinegi.hospitales -- Finalmente actualizamos la capa de hospitales
-SET id_union = foo.id_union,
+UPDATE costarica.hospitales -- Finalmente actualizamos la capa de hospitales
+SET id = foo.id,
 distancia = foo.dist
 FROM foo
 WHERE hospitales.id = foo.id
