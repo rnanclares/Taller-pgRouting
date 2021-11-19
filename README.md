@@ -65,33 +65,33 @@ Help:
  -v [ --version ]      Print version string
 
 General:
- -f [ --file ] arg                     REQUIRED: Name of the osm file.
- -c [ --conf ] arg (=/usr/share/osm2pgrouting/mapconfig.xml)
-                                       Name of the configuration xml file.
- --schema arg                          Database sch2pgrouting -f map.osm -c mapconfig_for_cars_mod.xml -d gislocal -p 5433 --schema costarica -U user -W password --clean --chunk 20000ema to put tables.
-                                         blank: defaults ´to default schema
-                                               dictated by PostgreSQL
-                                               search_path.
- --prefix arg                          Prefix added at the beginning of the
-                                       table names.
- --suffix arg                          Suffix added at the end of the table
-                                       names.
- --addnodes                            Import the osm_nodes, osm_ways &
-                                       osm_relations tables.
- --attributes                          Include attributes information.
- --tags                                Include tag information.
- --chunk arg (=20000)                  Exporting chunk size.
- --clean                               Drop previously created tables.
- --no-index                            Do not create indexes (Use when indexes
-                                       are already created)
+  -f [ --file ] arg                     REQUIRED: Name of the osm file.
+  -c [ --conf ] arg (=/usr/share/osm2pgrouting/mapconfig.xml)
+                                        Name of the configuration xml file.
+  --schema arg                          Database schema to put tables.
+                                          blank: defaults to default schema 
+                                                dictated by PostgreSQL 
+                                                search_path.
+  --prefix arg                          Prefix added at the beginning of the 
+                                        table names.
+  --suffix arg                          Suffix added at the end of the table 
+                                        names.
+  --addnodes                            Import the osm_nodes, osm_ways & 
+                                        osm_relations tables.
+  --attributes                          Include attributes information.
+  --tags                                Include tag information.
+  --chunk arg (=20000)                  Exporting chunk size.
+  --clean                               Drop previously created tables.
+  --no-index                            Do not create indexes (Use when indexes
+                                        are already created)
 
 Database options:
- -d [ --dbname ] arg            Name of your database (Required).
- -U [ --username ] arg          Name of the user, which have write access to
-                                the database.
- -h [ --host ] arg (=localhost) Host of your postgresql database.
- -p [ --port ] arg (=5432)      db_port of your database.
- -W [ --password ] arg          Password for database access.
+  -d [ --dbname ] arg                   Name of your database (Required).
+  -U [ --username ] arg                 Name of the user, which have write 
+                                        access to the database.
+  -h [ --host ] arg (=localhost)        Host of your postgresql database.
+  -p [ --port ] arg (=5432)             db_port of your database.
+  -W [ --password ] arg                 Password for database access.
  ```
 
 El parámetro --conf nos permite utilizar un archivo de configuración para osm2pgrouting que va a definir que tipos de carreteras o vías queremos utilizar y cual es la velocidad de desplazamiento en cada tipo de vía. Por defecto vamos a encontrar 3 configuraciones en la carpeta `/usr/share/osm2pgrouting/` (la ubicación depende del sistema operativo):
