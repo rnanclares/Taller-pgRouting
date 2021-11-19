@@ -560,156 +560,211 @@ Para realizar este proceso hemos utilizado la consulta que aparece a continuaci�
 
 ```sql
 ALTER TABLE costarica.hospitales
-ADD COLUMN id_nodo integer;
+ADD COLUMN id_nodo integer,
+ADD COLUMN distancia integer;
 
 WITH foo as (
 SELECT
 hospitales.gid,
-closest_node.id_union,
+closest_node.id,
 closest_node.dist
 FROM costarica.hospitales
 CROSS JOIN LATERAL -- Este CROSS JOIN lateral funciona como un bucle "for each"
 (SELECT
  id,
- ST_Distance(ways_vertices_pgr.the_geom, hospitales.geom) as dist
- FROM ruteoinegi."union"
- ORDER BY ST_Distance("union".geom, hospitales.geom)
+ ST_Distance(wvp.the_geom::geography, hospitales.geom::geography) as dist
+ FROM costarica.ways_vertices_pgr wvp 
+ ORDER BY wvp.the_geom <-> hospitales.geom
  LIMIT 1 -- Este limit 1 hace que solo obtengamos el nodo más cercano de la red
 ) AS closest_node)
 UPDATE costarica.hospitales -- Finalmente actualizamos la capa de hospitales
 SET id_nodo = foo.id,
 distancia = foo.dist
 FROM foo
-WHERE hospitales.gid = foo.gid
+WHERE hospitales.gid = foo.gid;
+
 ```
 Ahora ya estamos listos para usar el algoritmo pgr_drivingDistance, a partir del que luego podemos generar las isocronas (utilizando QGIS).
 
 ```sql
-SELECT subquery.seq,
+-- Puntos (nodos)
+select
+	row_number() over (order by seq) as gid, 
+    subquery.seq,
 	subquery.node,
 	subquery.edge,
 	subquery.cost,
 	subquery.aggcost,
-	st_transform(pt.geom,4326) as geom -- Reproyectamos a epsg:4326 para poder ver el resultado en pgAdmin4
+	wvp.the_geom as geom
 FROM pgr_drivingDistance('SELECT
-     id_red as id,
-     union_ini AS source,
-     union_fin AS target,                                    
+     gid as id,
+     source,
+     target,                                    
      cost_s AS cost
-     FROM ruteoinegi.red_vial', 635443, 3600, false)
+     FROM costarica.ways', 155390, 1800, false)
      subquery(seq, node, edge, cost, aggcost)
-JOIN ruteoinegi.union pt ON subquery.node = pt.id_union;
+JOIN costarica.ways_vertices_pgr wvp ON subquery.node = wvp.id;
+
+-- Lineas (edges)
+SELECT 
+	row_number() over (order by seq) as gid, 
+	subquery.seq,
+	subquery.node,
+	subquery.edge,
+	subquery.cost,
+	subquery.aggcost,
+	w.the_geom as geom
+FROM pgr_drivingDistance('SELECT
+     gid as id,
+     source,
+     target,                                    
+     cost_s AS cost
+     FROM costarica.ways', 155390, 1800, false)
+     subquery(seq, node, edge, cost, aggcost)
+JOIN costarica.ways w ON subquery.edge = w.gid;
 ```
 #### 4.3.3 Ejercicio 12 - Varios orígenes
-Para generar la distancias de manejo desde varios orígenes tenemos que volver a utilizar un `ARRAY`. En este caso concreto vamos a extraer todos los `id_union` desde la tabla `ruteoinegi.hospitales` y pasárselos a `pgr_drivingDistance`. Para que podamos generar las isocronas de todos los hospitales en conjunto tenemos que hacer dos procesos, primero calculamos la distancia de manejo desde cada hospital y posteriormente agrupamos los resulados por nodo (y geometría) y nos quedamos con el costo agregado mínimo que nos va a representar el tiempo mínimo desde ese nodo a un hospital.
+Para generar la distancias de manejo desde varios orígenes tenemos que volver a utilizar un `ARRAY`. En este caso concreto vamos a usar algunos`id` desde la tabla `costarica.hospitales` y pasárselos a `pgr_drivingDistance`. Para que podamos generar las isocronas de varios hospitales en conjunto tenemos que hacer dos procesos, primero calculamos la distancia de manejo desde cada hospital y posteriormente agrupamos los resulados por nodo (y geometría) y nos quedamos con el costo agregado mínimo que nos va a representar el tiempo mínimo desde ese nodo a un hospital.
 
 ```sql
 WITH ruteo as (
-  SELECT subquery.seq,
+  select
+    subquery.seq,
   	subquery.start_v,
   	subquery.node,
   	subquery.edge,
   	subquery.cost,
   	subquery.aggcost,
-  	pt.geom
+  	wvp.the_geom as geom
   FROM pgr_drivingDistance('SELECT
-       id_red as id,
-       union_ini AS source,
-       union_fin AS target,                                    
+       gid as id,
+       source,
+       target,                                    
        cost_s AS cost
-       FROM ruteoinegi.red_vial',
-       array(SELECT id_union FROM ruteoinegi.hospitales), 1800, false)
+       FROM costarica.ways',
+       array(SELECT id_nodo FROM costarica.hospitales
+       where nombre in ('HOSPITAL SAN VICENTE PAUL HEREDIA', 'HOSPITAL SAN RAFAEL DE ALAJUELA')), 1800, false)
        subquery(seq, start_v, node, edge, cost, aggcost)
-  JOIN ruteoinegi.union pt ON subquery.node = pt.id_union)
+  JOIN costarica.ways_vertices_pgr wvp ON subquery.node = wvp.id)
 SELECT node, geom, min(aggcost) AS aggcost
 FROM ruteo
 GROUP By node, geom;
 ```
 #### 4.3.4 Ejercicio 13 - isocronas
 
-Para generar las isocronas necesitamos el resultado del ejercicio anterior, podemos crear la tabla usando:
+Para generar las isocronas necesitamos el resultado del ejercicio anterior, podemos utilizar varios métodos.
+
+El primero es usando la función `pgr_alphaShape` que nos genera el "contorno" de isocrona usando el resultado de `pgr_drivingDistance`.
 
 ```sql
-CREATE TABLE public."elnombrequetuquieras" as (
-WITH ruteo as (
-  SELECT subquery.seq,
-  	subquery.start_v,
-  	subquery.node,
-  	subquery.edge,
-  	subquery.cost,
-  	subquery.aggcost,
-  	pt.geom
-  FROM pgr_drivingDistance('SELECT
-       id_red as id,
-       union_ini AS source,
-       union_fin AS target,                                    
-       cost_s AS cost
-       FROM ruteoinegi.red_vial',
-       array(SELECT id_union FROM ruteoinegi.hospitales), 1800, false)
-       subquery(seq, start_v, node, edge, cost, aggcost)
-  JOIN ruteoinegi.union pt ON subquery.node = pt.id_union)
-SELECT node, geom, min(aggcost) AS aggcost
-FROM ruteo
-GROUP By node, geom);
+with subquery as (
+    SELECT st_collect(wvp.the_geom) as geom
+    FROM pgr_drivingDistance('SELECT 
+			gid As id, 
+			source,
+			target,
+            cost_s AS cost,
+			reverse_cost_s as reverse_cost
+            FROM costarica.ways', array(SELECT id_nodo FROM costarica.hospitales
+       where nombre in ('HOSPITAL SAN VICENTE PAUL HEREDIA', 'HOSPITAL SAN RAFAEL DE ALAJUELA')), 450, false) AS di
+     INNER JOIN costarica.ways_vertices_pgr AS wvp ON di.node = wvp.id
+) select pgr_alphashape(geom, 1.5) as alphaGeom
+from subquery;
 ```
 
-Esto creará la tabla "elnombrequetuquieras" en el `schema public`. Para los siguientes pasos vamos a necesitar QGIS así que a continuación vamos a configurar la conexión a la base de datos dentro de QGIS.
-Para ello vamos al menú panel del navegador y en `PostGIS` creamos nueva conexión haciendo clic con el botón derecho.
+Por lo que he podido comprobar todavía necesita un poco de trabajo porque hay algunos bugs. Si crecemos un poco el tiempo máximo veremos que empieza a fallar. Durante la triangulación de Delaunay que se utiliza en el cálculo de las Alpha Shapes pueden aparecer geometrías no válidas (olígonos que se convierten en líneas) que pueden generar errores e impedir la finalización del proceso. 
 
-![Base de datos](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/conexion_postgis.png)
+Otra opción, utilizar `ST_ConcaveHull' de PostGIS para aproximar el resultado. Siempre es recomendable validar los resultados para encontrar posibles errores en nuestra red.
 
-Ahora podemos cargar la tabla que acabamos de crear que estará en el `schema public`.
+```sql
+with subquery as (
+    SELECT st_collect(wvp.the_geom) as geom
+    FROM pgr_drivingDistance('SELECT 
+			gid As id, 
+			source,
+			target,
+            cost_s AS cost,
+			reverse_cost_s as reverse_cost
+            FROM costarica.ways',array(SELECT id_nodo FROM costarica.hospitales
+       where nombre in ('HOSPITAL SAN VICENTE PAUL HEREDIA', 'HOSPITAL SAN RAFAEL DE ALAJUELA')), 450, false) AS di
+     INNER JOIN costarica.ways_vertices_pgr AS wvp ON di.node = wvp.id
+)
+```
 
-![Base de datos](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/bbdd_taller.png)
-
-Una vez cargada la capa vamos a exportar a un archivo local para poder trabajar con mayor comodidad sin depender de la conexión. Para ello hacemos clic con el botón derecho sobre la capa y la guardamos como un `geopackage`.
-
-![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_2.png)
-
-Para siguiente paso vamos a interpolar sobre la capa de puntos y generar una superficie de costo continua. Podemos utilizar la herramienta para generar TINs desde la caja de herramientas.
-![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_3.png)
-Configuramos la herramienta como se ve en la imagen.
-![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_4.png)
-El siguiente paso es generar las isolineas, en este caso, isocronas. Para ello vamos a usar la herramienta de `Curvas de nivel (Contours)` y la vamos a configurar como aparecen en la siguiente imagen.
-![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_6.png)
-
-El resultado final con un poco de diseño.
-![img](https://raw.githubusercontent.com/RNanclares/Taller-pgRouting/master/imgs/qgis_iso_5.png)
+La tercera opción implica el uso de QGIS o alguna otra herramienta que nos permita obtener una superficie continua de costo en formato raster, por ejemplo un TIN, y posteriormente extraer las isolineas usando alguna otra herramienta (gdal_contour es una opción). Esta opción en la más sencilla, ya que la obtención de conjuntos de isocronas es bastante complicada [usando solamente PostGIS](https://www.patreon.com/posts/isochrones-are-20933638?)
 
 ### **4.4 Ruteo Masivo**
 
-Una de las capacidades más notables de pgRouting es la posibilidad de realizar operaciones con grandes cantidades de datos de forma extremadamente rápida. Por ejemplo, podemos contestar preguntas del tipo: ¿Cuáles centros de salud son los más cercanos a cada la localidad de Jalisco?¿Cuáles son los 3 hospitales más cercanos a cada centro de salud? ¿Cuáles localidades se encuentran a más de 30 minutos de una escuela?¿Cuál es la accesibilidad de las escuelas de todo un estado?¿Qué zonas de un estado tienen poca accesibilidad a un servicio (escuelas, centros de salud, taquerías, etc).
+Una de las capacidades más notables de pgRouting es la posibilidad de realizar operaciones con grandes cantidades de datos de forma extremadamente rápida. Por ejemplo, podemos contestar preguntas del tipo: ¿Cuáles hospitales son los más cercanos a cada la localidad de Costa Rica?¿Cuáles son los 3 hospitales más cercanos a cada localidad? ¿Cuáles localidades se encuentran a más de 30 minutos de una escuela?¿Cuál es la accesibilidad de las escuelas de todo un país?¿Qué zonas de un país tienen poca accesibilidad a un servicio (escuelas, centros de salud, taquerías, etc)?.
 
 #### 4.4.1 Ejercicio 14 - Hospitales más cercanos a localidades
-En este ejercicio vamos a utilizar la función `pgr_dijkstraCost` para analizar cuáles son los tres hospitales más cercanos a cada localidad de Jalisco. Para ello vamos a usar las tablas `ruteoinegi.hospitales` y `ruteoinegi.locpob`. De nuevo vamos a utilizar arreglos (`ARRAY`) para definir los parametros de los nodos de origen y destino del algoritmo `pgr_dijkstraCost`. Esto nos va a permitir analizar 10972 localidades contra 92 hospitales en unos pocos minutos (¡Más de 1,000,000 de combinacines posibles!). El tiempo de ejecución de la consulta es de 13 minutos 44 segundos en nuestro servidor. ¡¡¡Nada mal!!! Para no emplear demasiado tiempo vamos a limitar el número de localidades a analizar añadiendo un pequeño filtro al arreglo y seleccionando las localidaes con `id<1000`.
+En este ejercicio vamos a utilizar la función `pgr_dijkstraCost` para analizar cuáles son los tres hospitales más cercanos a cada localidad de Costa Rica. Para ello vamos a usar las tablas `costarica.hospitales` y `costarica.lugares`. De nuevo vamos a utilizar arreglos (`ARRAY`) para definir los parametros de los nodos de origen y destino del algoritmo `pgr_dijkstraCost`.
+
+Primero tenemos que asignar un nodo de la red a cada localidad.
 ```sql
-CREATE TABLE ruteoinegi.localidadesVShospitales as (SELECT *
+ALTER TABLE costarica.hospitales
+ADD COLUMN id_nodo integer,
+ADD COLUMN distancia integer;
+
+WITH foo as (
+SELECT
+lugares.gid,
+closest_node.id,
+closest_node.dist
+FROM costarica.lugares
+CROSS JOIN LATERAL
+(SELECT
+ id,
+ ST_Distance(wvp.the_geom::geography, lugares.geom::geography) as dist
+ FROM costarica.ways_vertices_pgr wvp 
+ ORDER BY wvp.the_geom <-> lugares.geom
+ LIMIT 1 -- Este limit 1 hace que solo obtengamos el nodo más cercano de la red
+) AS closest_node)
+UPDATE costarica.lugares
+SET id_nodo = foo.id,
+distancia = foo.dist
+FROM foo
+WHERE lugares.gid = foo.gid;
+```
+
+A continuación usamos `pgr_dijkstraCost` para calcular la matriz de costos entre localidades y hospitales.
+
+```sql
+CREATE TABLE costarica.localidadesVShospitales as (SELECT *
   FROM pgr_dijkstraCost(
-      'SELECT id,
-           union_ini as source,
-           union_fin as target,
+      'SELECT gid as id,
+           source,
+           target,
            cost_s as cost
-          FROM ruteoinegi.red_vial',
-      array(SELECT id_union FROM ruteoinegi.locpob WHERE id<1000),
-      array(SELECT id_union FROM ruteoinegi.hospitales),
+          FROM costarica.ways',
+      array(SELECT id_nodo FROM costarica.lugares),
+      array(SELECT id_nodo FROM costarica.hospitales),
       directed := false));
 ```
-Ahora vamos a seleccionar solo los tres hospitales más cercanos a cada localidad.
+El resultado de esta consulta es una tabla `localidadesVShospitales` con el costo de desplazamiento acumulado `agg_cost` desde cada localidad `start_vid` a todos los hospitales `end_vid`.
+
+A continuación vamos a seleccionar solo los tres hospitales más cercanos a cada localidad.
 
 ```sql
-CREATE TABLE ruteoinegi.locpobvshospitalesrank as ( SELECT foo.* FROM (
-SELECT localidadesVShospitales.*, rank() over (partition BY start_vid ORDER BY agg_cost asc)
-FROM ruteoinegi.localidadesVShospitales) foo WHERE RANK <= 3);
+CREATE TABLE costarica.locpobvshospitalesrank as ( 
+    SELECT foo.* FROM (
+        SELECT localidadesVShospitales.*, rank() over (partition BY start_vid ORDER BY agg_cost asc)
+FROM costarica.localidadesVShospitales) foo WHERE RANK <= 3);
 ```
 
-El resultado de esta consulta es el costo de desplazamiento acumulado `agg_cost` desde cada localidad `start_vid` a todos los hospitales `end_vid`. Podemos mejorar la visualización de los resultados añadiendo los nombres de las localidades, los nombres de los hospitales y generando una linea usando `st_makeline` en caso de que queramos crear un mapa.
+Para terminar vamos a añadirle algunos datos más a la tabla.
+
 ```sql
-CREATE TABLE ruteoinegi.matriz_locpobVShospitales as (
-SELECT row_number() over (order by a.start_vid) as id, a.start_vid as nodo_inicio, b.nom_loc as localidad,
-a.end_vid as nodo_fin, c."nombre de la unidad" as hospital,
-c."nombre de tipologia" as tipologia_hosp, a."agg_cost" / 60 as tiempo_minutos, a."rank",
-st_makeline(b.geom,c.geom)
-FROM ruteoinegi.locpobvshospitalesrank a
-LEFT JOIN ruteoinegi.locpob b ON a.start_vid = b.id_union
-LEFT JOIN ruteoinegi.hospitales c ON a.end_vid = c.id_union);
+CREATE TABLE costarica.matriz_locpobVShospitales as (
+	SELECT row_number() over (order by a.start_vid) as id,
+	a.start_vid as nodo_inicio,
+	b."name" as localidad,
+	a.end_vid as nodo_fin,
+	c.nombre as hospital,
+	a."agg_cost" / 60 as tiempo_minutos,
+	a."rank",
+	st_makeline(b.geom,c.geom) as geom
+FROM costarica.locpobvshospitalesrank a
+LEFT JOIN costarica.lugares b ON a.start_vid = b.id_nodo
+LEFT JOIN costarica.hospitales c ON a.end_vid = c.id_nodo);
 ```
