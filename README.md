@@ -153,7 +153,7 @@ pgr_dijkstra(edges_sql, start_vid,  end_vid  [, directed])
 pgr_dijkstra(edges_sql, start_vid,  end_vids [, directed])
 pgr_dijkstra(edges_sql, start_vids, end_vid  [, directed])
 pgr_dijkstra(edges_sql, start_vids, end_vids [, directed])
-
+pgr_dijkstra(Edges SQL, Combinations SQL [, directed])
 RETURNS SET OF (seq, path_seq [, start_vid] [, end_vid], node, edge, cost, agg_cost)
 OR EMPTY SET
 ```
@@ -315,6 +315,7 @@ pgr_dijkstraCost(edges_sql, start_vid,  end_vid  [, directed])
 pgr_dijkstraCost(edges_sql, start_vid,  end_vids [, directed])
 pgr_dijkstraCost(edges_sql, start_vids, end_vid  [, directed])
 pgr_dijkstraCost(edges_sql, start_vids, end_vids [, directed])
+pgr_bdDijkstraCost(Edges SQL, Combinations SQL [, directed])
 
 RETURNS SET OF (start_vid, end_vid, agg_cost)
     OR EMPTY SET
