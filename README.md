@@ -689,7 +689,8 @@ with subquery as (
             FROM costarica.ways',array(SELECT id_nodo FROM costarica.hospitales
        where nombre in ('HOSPITAL SAN VICENTE PAUL HEREDIA', 'HOSPITAL SAN RAFAEL DE ALAJUELA')), 450, false) AS di
      INNER JOIN costarica.ways_vertices_pgr AS wvp ON di.node = wvp.id
-)
+) select st_ConcaveHull(subquery.geom, 0.8) as geom
+from subquery;
 ```
 
 La tercera opción implica el uso de QGIS o alguna otra herramienta que nos permita obtener una superficie continua de costo en formato raster, por ejemplo un TIN, y posteriormente extraer las isolineas usando alguna otra herramienta (gdal_contour es una opción). Esta opción en la más sencilla, ya que la obtención de conjuntos de isocronas es bastante complicada [usando solamente PostGIS](https://www.patreon.com/posts/isochrones-are-20933638?)

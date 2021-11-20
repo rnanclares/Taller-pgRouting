@@ -2,6 +2,7 @@
 
 # Arreglamos algunos datos nulos en la capa costarica.ways
 # arreglamos valores nulos en el campo cost
+
 select *
 from costarica.ways w
 where w.length_m is null;
@@ -32,7 +33,7 @@ SELECT * FROM pgr_dijkstra('SELECT gid as id,
          length_m AS cost
         FROM costarica.ways',
     79012, 35280,
-    directed := false)
+    directed := false);
     
     
 WITH ruta as (SELECT * FROM pgr_dijkstra(
@@ -254,7 +255,9 @@ FROM ruta
 LEFT JOIN costarica.ways b ON ruta.edge = b.gid;
 
 --- Vamos a modificar el penalty de las vías primarias
+
 UPDATE costarica.configuration SET penalty=100 WHERE tag_value = 'primary';
+UPDATE costarica.configuration SET penalty=100 WHERE tag_value = 'trunk';
 
 WITH ruta as (SELECT * FROM pgr_dijkstra('
     SELECT gid AS id,
@@ -388,12 +391,13 @@ with subquery as (
             FROM costarica.ways',array(SELECT id_nodo FROM costarica.hospitales
        where nombre in ('HOSPITAL SAN VICENTE PAUL HEREDIA', 'HOSPITAL SAN RAFAEL DE ALAJUELA')), 450, false) AS di
      INNER JOIN costarica.ways_vertices_pgr AS wvp ON di.node = wvp.id
-)
+) select st_ConcaveHull(subquery.geom, 0.8) as geom
+from subquery;
 
 
 -- Ejercicio 14
 
-ALTER TABLE costarica.hospitales
+ALTER TABLE costarica.lugares
 ADD COLUMN id_nodo integer,
 ADD COLUMN distancia integer;
 
