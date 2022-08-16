@@ -1,0 +1,8 @@
+# osm2pgrouting Fedora compilation
+
+sudo dnf install cmake expat expat-devel boost-devel boost-program-options libpqxx-devel libpq-devel
+
+cmake -H. -Bbuild
+cd build/
+make
+sudo make install
